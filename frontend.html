@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ПОЛИЦЕЙСКАЯ ЗАПИСЬ ОТ</title>
+	<style>
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+		body { 
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			min-height: 100vh;
+			padding: 20px;
+		}
+		.container { max-width: 1400px; margin: 0 auto; }
+		header { 
+			background: rgba(255,255,255,0.95); 
+			padding: 30px; 
+			border-radius: 15px; 
+			margin-bottom: 30px; 
+			box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+		}
+		h1 { font-size: 32px; color: #667eea; margin-bottom: 5px; }
+		.subtitle { color: #666; font-size: 14px; }
+		.main { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+		.sidebar { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 25px; height: fit-content; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+		.content { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+		.btn { 
+			background: #667eea; 
+			color: white; 
+			border: none; 
+			padding: 12px 24px; 
+			border-radius: 8px; 
+			cursor: pointer; 
+			font-size: 14px;
+			font-weight: 600;
+			transition: all 0.3s;
+		}
+		.btn:hover { background: #764ba2; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.4); }
+		.btn-success { background: #27ae60; }
+		.btn-success:hover { background: #229954; }
+		.btn-danger { background: #e74c3c; }
+		.btn-danger:hover { background: #c0392b; }
+		.btn-warning { background: #f39c12; }
+		.btn-warning:hover { background: #e67e22; }
+		.btn-small { padding: 8px 16px; font-size: 13px; }
+		.channel-list { list-style: none; }
+		.channel-item { 
+			padding: 15px; 
+			margin-bottom: 10px; 
+			background: #f8f9fa; 
+			border-radius: 10px; 
+			cursor: pointer; 
+			transition: all 0.3s; 
+			border: 2px solid transparent;
+		}
+		.channel-item:hover { background: #e9ecef; border-color: #667eea; }
+		.channel-item.active { background: #667eea; color: white; border-color: #764ba2; }
+		.channel-name { font-weight: 600; font-size: 16px; margin-bottom: 5px; }
+		.channel-info { font-size: 12px; opacity: 0.8; }
+		.channel-status { display: inline-block; padding: 3px 8px; border-radius: 5px; font-size: 11px; margin-top: 5px; }
+		.status-active { background: #d4edda; color: #155724; }
+		.status-inactive { background: #f8d7da; color: #721c24; }
+		.form-group { margin-bottom: 15px; }
+		label { 
+			display: block; 
+			margin-bottom: 6px; 
+			font-size: 13px; 
+			font-weight: 600; 
+			color: #333;
+		}
+		input, select { 
+			width: 100%; 
+			padding: 10px; 
+			border: 2px solid #e0e0e0; 
+			border-radius: 8px; 
+			font-size: 14px; 
+			transition: border-color 0.3s;
+		}
+		input:focus, select:focus { outline: none; border-color: #667eea; }
+		.files-grid { 
+			display: grid; 
+			grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+			gap: 15px; 
+			margin-top: 20px; 
+		}
+		.file-card { 
+			background: #f8f9fa; 
+			border-radius: 10px; 
+			padding: 15px; 
+			transition: all 0.3s;
+			border: 2px solid transparent;
+		}
+		.file-card:hover { 
+			border-color: #667eea; 
+			transform: translateY(-3px);
+			box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+		}
+		.file-name { font-weight: 600; margin-bottom: 10px; word-break: break-all; font-size: 13px; color: #333; }
+		.file-meta { font-size: 12px; color: #666; margin-bottom: 5px; }
+		.file-actions { display: flex; gap: 8px; margin-top: 12px; }
+		.file-actions button, .file-actions a { flex: 1; padding: 8px; font-size: 12px; text-decoration: none; text-align: center; display: block; }
+		video { width: 100%; background: #000; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+		.player-controls { 
+			display: flex; 
+			gap: 12px; 
+			margin-bottom: 20px; 
+			flex-wrap: wrap; 
+			align-items: center;
+		}
+		.player-controls input { flex: 1; min-width: 150px; }
+		.empty-state { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
+		.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+		.stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; }
+		.stat-value { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
+		.stat-label { font-size: 13px; opacity: 0.9; }
+		.section-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: #333; }
+		.loading { text-align: center; padding: 40px; }
+		.spinner { display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
+		@keyframes spin { to { transform: rotate(360deg); } }
+		
+		/* Стили календаря */
+		.calendar-container { margin-bottom: 20px; }
+		.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+		.calendar-header button { padding: 8px 16px; }
+		.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+		.calendar-day { padding: 10px; text-align: center; border-radius: 5px; cursor: pointer; transition: all 0.3s; border: 2px solid transparent; }
+		.calendar-day:hover { background: #e9ecef; border-color: #667eea; }
+		.calendar-day.selected { background: #667eea; color: white; }
+		.calendar-day.has-files { font-weight: bold; background: #d4edda; }
+		.calendar-day.disabled { color: #ccc; cursor: not-allowed; }
+		.calendar-day-name { font-weight: bold; padding: 10px; text-align: center; color: #667eea; }
+		.date-filter { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+		.archive-btn { background: #f39c12; margin-left: 10px; }
+		.archive-btn:hover { background: #e67e22; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<header>
+			<h1>📺 Полицейская запись OTCNET</h1>
+			<p class="subtitle"> Система Полицейской Записи ОСТАНКИНО ТЕЛЕКОМ | Backend: Go | Frontend: HTML/JS | Support - Vladimir Plaksin Email: v.plaksin@otcnet.ru</a></p>
+		</header>
+		
+		<div class="main">
+			<div class="sidebar">
+				<h2 class="section-title">Каналы</h2>
+				<ul class="channel-list" id="channelList"></ul>
+				
+				<button class="btn" style="width: 100%; margin-top: 20px;" onclick="toggleAddForm()">
+					+ Добавить канал
+				</button>
+				
+				<div id="addChannelForm" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+					<h3 style="font-size: 16px; margin-bottom: 15px; color: #333;">Новый канал</h3>
+					<div class="form-group">
+						<label>Название</label>
+						<input type="text" id="newChannelName" placeholder="Первый канал">
+					</div>
+					<div class="form-group">
+						<label>Мультикаст IP</label>
+						<input type="text" id="newChannelIP" placeholder="239.255.0.1" value="239.255.0.1">
+					</div>
+					<div class="form-group">
+						<label>Порт</label>
+						<input type="number" id="newChannelPort" placeholder="1234" value="1234">
+					</div>
+					<div class="form-group">
+						<label>Интерфейс</label>
+						<select id="newChannelInterface"></select>
+					</div>
+					<button class="btn btn-success" style="width: 100%; margin-bottom: 8px;" onclick="createChannel()">
+						Создать
+					</button>
+					<button class="btn" style="width: 100%; background: #6c757d;" onclick="toggleAddForm()">
+						Отмена
+					</button>
+				</div>
+			</div>
+			
+			<div class="content">
+				<div id="mainContent">
+					<div class="empty-state">
+						👈 Выберите канал из списка слева
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+		const API_BASE = '';
+		
+		let channels = [];
+		let selectedChannel = null;
+		let currentMonth = new Date();
+		let selectedDate = null;
+		let allFiles = [];
+		
+		async function loadChannels() {
+			try {
+				const res = await fetch(`${API_BASE}/api/channels`);
+				if (!res.ok) throw new Error('Не удалось загрузить каналы');
+				channels = await res.json() || [];
+				renderChannelList();
+				await loadInterfaces();
+				await loadStatus();
+			} catch (e) {
+				console.error('Ошибка:', e);
+				showError('Не удалось подключиться к серверу');
+			}
+		}
+		
+		async function loadInterfaces() {
+			try {
+				const res = await fetch(`${API_BASE}/api/interfaces`);
+				const data = await res.json();
+				const select = document.getElementById('newChannelInterface');
+				select.innerHTML = '';
+				data.interfaces.forEach(iface => {
+					const opt = document.createElement('option');
+					opt.value = iface;
+					opt.textContent = iface;
+					select.appendChild(opt);
+				});
+			} catch (e) {
+				console.error('Ошибка загрузки интерфейсов:', e);
+			}
+		}
+		
+		async function loadStatus() {
+			try {
+				const res = await fetch(`${API_BASE}/api/status`);
+				const data = await res.json();
+				
+				const statsEl = document.getElementById('statsGrid');
+				if (statsEl) {
+					statsEl.innerHTML = `
+						<div class="stat-card">
+							<div class="stat-value">${data.active_channels}</div>
+							<div class="stat-label">Активных каналов</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-value">${data.total_files}</div>
+							<div class="stat-label">Файлов записано</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-value">${data.total_size_mb.toFixed(1)} MB</div>
+							<div class="stat-label">Размер записей</div>
+						</div>
+					`;
+				}
+			} catch (e) {
+				console.error('Ошибка загрузки статуса:', e);
+			}
+		}
+		
+		function renderChannelList() {
+			const list = document.getElementById('channelList');
+			list.innerHTML = '';
+			
+			if (channels.length === 0) {
+				list.innerHTML = '<li style="color: #999; padding: 20px; text-align: center;">Нет каналов</li>';
+				return;
+			}
+			
+			channels.forEach(ch => {
+				const li = document.createElement('li');
+				li.className = 'channel-item';
+				if (selectedChannel && selectedChannel.id === ch.id) {
+					li.classList.add('active');
+				}
+				
+				const statusClass = ch.enabled ? 'status-active' : 'status-inactive';
+				const statusText = ch.enabled ? '✓ Активен' : '✗ Отключен';
+				
+				li.innerHTML = `
+					<div class="channel-name">${escapeHtml(ch.name)}</div>
+					<div class="channel-info">${escapeHtml(ch.multicast_ip)}:${ch.port}</div>
+					<div class="channel-status ${statusClass}">${statusText}</div>
+				`;
+				li.onclick = () => selectChannel(ch);
+				list.appendChild(li);
+			});
+		}
+		
+		function selectChannel(channel) {
+			selectedChannel = channel;
+			renderChannelList();
+			showChannelView();
+		}
+		
+		async function showChannelView() {
+			if (!selectedChannel) return;
+			
+			const mainContent = document.getElementById('mainContent');
+			mainContent.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+			
+			try {
+				const res = await fetch(`${API_BASE}/api/files/${encodeURIComponent(selectedChannel.name)}`);
+				const data = await res.json();
+				const files = data.files || [];
+				
+				const toggleBtn = selectedChannel.enabled 
+					? `<button class="btn btn-danger btn-small" onclick="toggleChannel('${selectedChannel.id}', false)">Отключить</button>`
+					: `<button class="btn btn-success btn-small" onclick="toggleChannel('${selectedChannel.id}', true)">Включить</button>`;
+				
+				const editBtn = `<button class="btn btn-warning btn-small" style="margin-left: 10px;" onclick="editChannel('${selectedChannel.id}')">✏️ Изменить</button>`;
+				const deleteBtn = `<button class="btn btn-danger btn-small" style="margin-left: 10px;" onclick="deleteChannel('${selectedChannel.id}')">🗑️ Удалить</button>`;
+				
+				let html = `
+					<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+						<h2 class="section-title" style="margin: 0;">${escapeHtml(selectedChannel.name)}</h2>
+						<div>${toggleBtn}${editBtn}${deleteBtn}</div>
+					</div>
+					
+					<div class="stats-grid" id="statsGrid"></div>
+					
+					<div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 25px;">
+						<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; font-size: 14px;">
+							<div>
+								<strong>IP:</strong><br>
+								${escapeHtml(selectedChannel.multicast_ip)}:${selectedChannel.port}
+							</div>
+							<div>
+								<strong>Интерфейс:</strong><br>
+								${escapeHtml(selectedChannel.interface)}
+							</div>
+							<div>
+								<strong>Статус:</strong><br>
+								${selectedChannel.enabled ? '✅ Активен' : '❌ Отключен'}
+							</div>
+						</div>
+					</div>
+					
+					<div id="player-container"></div>
+					
+					<div class="date-filter">
+						<div class="calendar-container">
+							<div class="calendar-header">
+								<button class="btn btn-small" onclick="previousMonth()">◀ Пред</button>
+								<h4 id="calendarTitle" style="margin: 0;"></h4>
+								<button class="btn btn-small" onclick="nextMonth()">След ▶</button>
+							</div>
+							<div class="calendar-grid" id="calendarGrid"></div>
+						</div>
+						<div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
+							<button class="btn btn-small" onclick="showAllFiles()">Показать все файлы</button>
+							<button class="btn btn-small archive-btn" onclick="downloadArchive()" id="archiveBtn" style="display: none;">
+								📦 Скачать архив за выбранную дату
+							</button>
+						</div>
+					</div>
+					
+					<h3 class="section-title">Записанные файлы (<span id="fileCount">${files.length}</span>)</h3>
+					${files.length === 0 ? '<p style="color: #999; padding: 20px; text-align: center;">Нет записей</p>' : ''}
+					<div class="files-grid" id="filesGrid"></div>
+				`;
+				
+				allFiles = files; // Сохранить все файлы
+				
+				mainContent.innerHTML = html;
+				loadStatus();
+				
+				if (files.length > 0) {
+					renderFilesList(files);
+					showVideoPlayer(files[0]);
+					renderCalendar(); // Отрисовать календарь
+				}
+			} catch (e) {
+				mainContent.innerHTML = `<div style="color: #e74c3c; padding: 20px;">Ошибка загрузки: ${e.message}</div>`;
+			}
+			}
+		
+		// Функции календаря
+		function renderCalendar() {
+			const year = currentMonth.getFullYear();
+			const month = currentMonth.getMonth();
+			
+			document.getElementById('calendarTitle').textContent = 
+				currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+			
+			const firstDay = new Date(year, month, 1).getDay();
+			const daysInMonth = new Date(year, month + 1, 0).getDate();
+			
+			const grid = document.getElementById('calendarGrid');
+			grid.innerHTML = '';
+			
+			// Дни недели
+			['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].forEach(day => {
+				const el = document.createElement('div');
+				el.className = 'calendar-day-name';
+				el.textContent = day;
+				grid.appendChild(el);
+			});
+			
+			// Пустые ячейки
+			const startDay = firstDay === 0 ? 6 : firstDay - 1;
+			for (let i = 0; i < startDay; i++) {
+				const el = document.createElement('div');
+				el.className = 'calendar-day disabled';
+				grid.appendChild(el);
+			}
+			
+			// Дни месяца
+			for (let day = 1; day <= daysInMonth; day++) {
+				const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+				const hasFiles = allFiles.some(f => f.name.includes(dateStr));
+				
+				const el = document.createElement('div');
+				el.className = 'calendar-day';
+				if (hasFiles) el.classList.add('has-files');
+				if (selectedDate === dateStr) el.classList.add('selected');
+				el.textContent = day;
+				el.onclick = () => selectDate(dateStr);
+				grid.appendChild(el);
+			}
+		}
+		
+		function previousMonth() {
+			currentMonth.setMonth(currentMonth.getMonth() - 1);
+			renderCalendar();
+		}
+		
+		function nextMonth() {
+			currentMonth.setMonth(currentMonth.getMonth() + 1);
+			renderCalendar();
+		}
+		
+		function selectDate(dateStr) {
+			selectedDate = dateStr;
+			renderCalendar();
+			filterFilesByDate(dateStr);
+			document.getElementById('archiveBtn').style.display = 'inline-block';
+		}
+		
+		function showAllFiles() {
+			selectedDate = null;
+			renderCalendar();
+			renderFilesList(allFiles);
+			document.getElementById('fileCount').textContent = allFiles.length;
+			document.getElementById('archiveBtn').style.display = 'none';
+		}
+		
+		function filterFilesByDate(dateStr) {
+			const filtered = allFiles.filter(f => f.name.includes(dateStr));
+			renderFilesList(filtered);
+			document.getElementById('fileCount').textContent = filtered.length;
+		}
+		
+		function downloadArchive() {
+			if (!selectedDate || !selectedChannel) return;
+			const url = `${API_BASE}/api/archive/${encodeURIComponent(selectedChannel.name)}/${selectedDate}`;
+			window.location.href = url;
+		}
+		
+		function showVideoPlayer(file) {
+			const container = document.getElementById('player-container');
+			const url = `${API_BASE}/api/stream/${encodeURIComponent(selectedChannel.name)}/${encodeURIComponent(file.name)}`;
+			
+			container.innerHTML = `
+				<video id="videoPlayer" controls>
+					<source src="${url}" type="video/mp2t">
+					Ваш браузер не поддерживает видео
+				</video>
+				<div class="player-controls">
+					<a href="${API_BASE}/api/download/${encodeURIComponent(selectedChannel.name)}/${encodeURIComponent(file.name)}" 
+					   class="btn" style="text-decoration: none;">
+						💾 Скачать файл
+					</a>
+				</div>
+			`;
+		}
+		
+		function renderFilesList(files) {
+			const grid = document.getElementById('filesGrid');
+			grid.innerHTML = '';
+			
+			files.forEach(file => {
+				const card = document.createElement('div');
+				card.className = 'file-card';
+				
+				card.innerHTML = `
+					<div class="file-name">📄 ${escapeHtml(file.name)}</div>
+					<div class="file-meta">📅 ${escapeHtml(file.modified_str)}</div>
+					<div class="file-meta">💾 ${(file.size / 1024 / 1024).toFixed(1)} MB</div>
+					<div class="file-actions">
+						<button class="btn btn-small" onclick="viewFile('${escapeHtml(file.name)}')">
+							▶️ Смотреть
+						</button>
+						<a href="${API_BASE}/api/download/${encodeURIComponent(selectedChannel.name)}/${encodeURIComponent(file.name)}" 
+						   class="btn btn-small">
+							💾 Скачать
+						</a>
+					</div>
+				`;
+				grid.appendChild(card);
+			});
+		}
+		
+		function viewFile(filename) {
+			fetch(`${API_BASE}/api/files/${encodeURIComponent(selectedChannel.name)}`)
+				.then(r => r.json())
+				.then(data => {
+					const file = data.files.find(f => f.name === filename);
+					if (file) showVideoPlayer(file);
+				});
+		}
+		
+		async function toggleChannel(channelId, enable) {
+			try {
+				const res = await fetch(`${API_BASE}/api/channels/${channelId}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ enabled: enable })
+				});
+				
+				if (res.ok) {
+					await loadChannels();
+					selectedChannel = channels.find(ch => ch.id === channelId);
+					if (selectedChannel) {
+						showChannelView();
+					}
+				}
+			} catch (e) {
+				alert('Ошибка: ' + e.message);
+			}
+		}
+		
+		function editChannel(channelId) {
+			const channel = channels.find(ch => ch.id === channelId);
+			if (!channel) return;
+			
+			const newName = prompt('Название канала:', channel.name);
+			if (newName === null) return;
+			
+			const newIP = prompt('Мультикаст IP:', channel.multicast_ip);
+			if (newIP === null) return;
+			
+			const newPort = prompt('Порт:', channel.port);
+			if (newPort === null) return;
+			
+			fetch(`${API_BASE}/api/channels/${channelId}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: newName,
+					multicast_ip: newIP,
+					port: parseInt(newPort)
+				})
+			})
+			.then(res => {
+				if (res.ok) {
+					alert('✅ Канал обновлён');
+					return loadChannels();
+				}
+			})
+			.then(() => {
+				selectedChannel = channels.find(ch => ch.id === channelId);
+				if (selectedChannel) {
+					showChannelView();
+				}
+			})
+			.catch(e => alert('Ошибка: ' + e.message));
+		}
+		
+		function deleteChannel(channelId) {
+			if (!confirm('Удалить канал? Это действие необратимо.')) return;
+			
+			fetch(`${API_BASE}/api/channels/${channelId}`, {
+				method: 'DELETE'
+			})
+			.then(res => {
+				if (res.ok) {
+					alert('✅ Канал удалён');
+					selectedChannel = null;
+					loadChannels();
+					document.getElementById('mainContent').innerHTML = '<div class="empty-state">👈 Выберите канал из списка слева</div>';
+				}
+			})
+			.catch(e => alert('Ошибка: ' + e.message));
+		}
+		
+		function toggleAddForm() {
+			const form = document.getElementById('addChannelForm');
+			form.style.display = form.style.display === 'none' ? 'block' : 'none';
+		}
+		
+		async function createChannel() {
+			const name = document.getElementById('newChannelName').value.trim();
+			const ip = document.getElementById('newChannelIP').value.trim();
+			const port = document.getElementById('newChannelPort').value;
+			const iface = document.getElementById('newChannelInterface').value;
+			
+			if (!name || !ip || !port) {
+				alert('Заполните все поля');
+				return;
+			}
+			
+			try {
+				const res = await fetch(`${API_BASE}/api/channels`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						name: name,
+						multicast_ip: ip,
+						port: parseInt(port),
+						interface: iface,
+						enabled: true
+					})
+				});
+				
+				if (res.ok) {
+					toggleAddForm();
+					document.getElementById('newChannelName').value = '';
+					await loadChannels();
+					alert('✅ Канал создан');
+				}
+			} catch (e) {
+				alert('Ошибка: ' + e.message);
+			}
+		}
+		
+		function showError(message) {
+			document.getElementById('mainContent').innerHTML = `
+				<div style="color: #e74c3c; padding: 20px; text-align: center;">
+					<strong>❌ Ошибка:</strong> ${escapeHtml(message)}
+				</div>
+				`;
+		}
+
+		function escapeHtml(text) {
+			const div = document.createElement('div');
+			div.textContent = text;
+			return div.innerHTML;
+		}
+
+		loadChannels();
+		setInterval(loadStatus, 30000);
+	</script>
+</body>
+</html>
