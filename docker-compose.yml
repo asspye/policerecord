@@ -1,0 +1,26 @@
+services:
+  tv-recorder:
+    build: .
+    container_name: tv-recorder
+    restart: unless-stopped
+
+    # Для приёма UDP мультикаст нужна сеть хоста
+    network_mode: host
+
+    environment:
+      - CONFIG_PATH=/opt/tv-recorder/config/channels.yaml
+      - API_PORT=5000
+
+    volumes:
+      # Конфиг — редактируется через API, нужен персистентный
+      - ./config:/opt/tv-recorder/config
+      # Записи
+      - /opt/tv-recorder/recordings:/opt/tv-recorder/recordings
+      # Логи
+      - ./logs:/opt/tv-recorder/logs
+
+    # Мягкий лимит ресурсов (настрой под сервер)
+    deploy:
+      resources:
+        limits:
+          memory: 4G

@@ -1,0 +1,22 @@
+channels:
+  - id: channel_1
+    name: 1HD-Music-HD_ID001
+    multicast_ip: 232.232.8.15
+    port: 3333
+    interface: mcast0
+    enabled: true
+  - id: channel_5
+    name: Belarus24-with-radio-HD_ID527
+    multicast_ip: 233.198.135.67
+    port: 3333
+    interface: mcast0
+    enabled: false
+
+recording:
+  bitrate: 500k
+  fps: "20"
+  codec: libx264
+  preset: veryfast
+  segment_duration: 3600
+  audio_bitrate: 96k
+  resolution: 640x480

@@ -3,32 +3,34 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 )
 
 // Recorder - структура рекордера
 type Recorder struct {
-	configManager *ConfigManager
-	logger        *log.Logger
-	processes     map[string]*exec.Cmd
-	stopChans     map[string]chan bool
-	mu            sync.RWMutex
-	running       bool
+	configManager   *ConfigManager
+	logger          *log.Logger
+	processes       map[string]*exec.Cmd
+	stopChans       map[string]chan bool
+	runningChannels map[string]Channel // параметры с которыми запущен каждый канал
+	mu              sync.RWMutex
+	running         bool
 }
 
 // NewRecorder - создание нового рекордера
 func NewRecorder(cm *ConfigManager, logger *log.Logger) *Recorder {
 	return &Recorder{
-		configManager: cm,
-		logger:        logger,
-		processes:     make(map[string]*exec.Cmd),
-		stopChans:     make(map[string]chan bool),
-		running:       false,
+		configManager:   cm,
+		logger:          logger,
+		processes:       make(map[string]*exec.Cmd),
+		stopChans:       make(map[string]chan bool),
+		runningChannels: make(map[string]Channel),
+		running:         false,
 	}
 }
 
@@ -75,6 +77,7 @@ func (r *Recorder) startChannels() {
 				stopChan := make(chan bool)
 				r.mu.Lock()
 				r.stopChans[ch.ID] = stopChan
+				r.runningChannels[ch.ID] = ch
 				r.mu.Unlock()
 
 				go r.recordChannel(ch, stopChan)
@@ -122,21 +125,33 @@ func (r *Recorder) reloadConfig() {
 	r.mu.RUnlock()
 
 	for id, stopChan := range currentChannels {
-		if _, shouldRun := activeChannels[id]; !shouldRun {
-			r.logger.Printf("⏸️  Остановка канала: %s", id)
-			select {
-			case stopChan <- true:
-			default:
-			}
-			close(stopChan)
+		newCh, shouldRun := activeChannels[id]
 
+		needRestart := false
+		if shouldRun {
+			r.mu.RLock()
+			old := r.runningChannels[id]
+			r.mu.RUnlock()
+			if old.MulticastIP != newCh.MulticastIP || old.Port != newCh.Port || old.Interface != newCh.Interface {
+				r.logger.Printf("🔁 Параметры канала изменились, перезапуск: %s", id)
+				needRestart = true
+			}
+		}
+
+		if !shouldRun || needRestart {
+			if !shouldRun {
+				r.logger.Printf("⏸️  Остановка канала: %s", id)
+			}
 			r.mu.Lock()
 			delete(r.stopChans, id)
+			delete(r.runningChannels, id)
 			r.mu.Unlock()
+
+			close(stopChan)
 		}
 	}
 
-	// Запустить новые каналы
+	// Запустить новые и перезапущенные каналы
 	for id, ch := range activeChannels {
 		r.mu.RLock()
 		_, exists := r.stopChans[id]
@@ -146,10 +161,11 @@ func (r *Recorder) reloadConfig() {
 			stopChan := make(chan bool)
 			r.mu.Lock()
 			r.stopChans[id] = stopChan
+			r.runningChannels[id] = ch
 			r.mu.Unlock()
 
 			go r.recordChannel(ch, stopChan)
-			r.logger.Printf("▶️  Запущен новый канал: %s", ch.Name)
+			r.logger.Printf("▶️  Запущен канал: %s", ch.Name)
 		}
 	}
 }
@@ -179,6 +195,14 @@ func (r *Recorder) recordChannel(ch Channel, stopChan chan bool) {
 		// Построить команду FFmpeg
 		cmd := r.buildFFmpegCommand(ch, outputDir)
 
+		// Открыть лог FFmpeg — закрываем явно после cmd.Run(), не через defer (цикл)
+		var logF *os.File
+		logPath := filepath.Join("logs", fmt.Sprintf("ffmpeg_%s.log", ch.ID))
+		if f, ferr := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); ferr == nil {
+			cmd.Stderr = f
+			logF = f
+		}
+
 		r.mu.Lock()
 		r.processes[ch.ID] = cmd
 		r.mu.Unlock()
@@ -187,6 +211,11 @@ func (r *Recorder) recordChannel(ch Channel, stopChan chan bool) {
 
 		// Запустить процесс
 		err := cmd.Run()
+
+		if logF != nil {
+			logF.Close()
+			logF = nil
+		}
 
 		r.mu.Lock()
 		delete(r.processes, ch.ID)
@@ -199,6 +228,10 @@ func (r *Recorder) recordChannel(ch Channel, stopChan chan bool) {
 
 			if retryCount >= maxRetries {
 				r.logger.Printf("❌ [%s] Превышено количество попыток. Канал остановлен.", ch.Name)
+				r.mu.Lock()
+				delete(r.stopChans, ch.ID)
+				delete(r.runningChannels, ch.ID)
+				r.mu.Unlock()
 				return
 			}
 		} else {
@@ -220,7 +253,7 @@ func (r *Recorder) recordChannel(ch Channel, stopChan chan bool) {
 
 // buildFFmpegCommand - построить команду FFmpeg
 func (r *Recorder) buildFFmpegCommand(ch Channel, outputDir string) *exec.Cmd {
-	rec := r.configManager.Config.Recording
+	rec := r.configManager.GetRecordingConfig()
 
 	// Входной URL (мультикаст) с указанием локального адреса интерфейса
 	inputURL := fmt.Sprintf("udp://%s:%d?localaddr=%s&fifo_size=50000000&overrun_nonfatal=1&timeout=5000000",
@@ -274,14 +307,7 @@ func (r *Recorder) buildFFmpegCommand(ch Channel, outputDir string) *exec.Cmd {
 	outputPattern,
 )
 
-cmd := exec.Command("ffmpeg", args...)
-	// Логировать stderr FFmpeg
-	logFile := filepath.Join("logs", fmt.Sprintf("ffmpeg_%s.log", ch.ID))
-	if f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-		cmd.Stderr = f
-	}
-
-	return cmd
+	return exec.Command("ffmpeg", args...)
 }
 
 // getOutputDir - получить путь для записи
@@ -290,30 +316,34 @@ func (r *Recorder) getOutputDir(channelName string) string {
 	return filepath.Join("/opt/tv-recorder/recordings", safeName)
 }
 
-// getInterfaceIP - получить IP адрес сетевого интерфейса
+// getInterfaceIP - получить IPv4 адрес сетевого интерфейса через stdlib
 func (r *Recorder) getInterfaceIP(ifaceName string) string {
-	cmd := exec.Command("ip", "-4", "addr", "show", ifaceName)
-	output, err := cmd.Output()
+	iface, err := net.InterfaceByName(ifaceName)
 	if err != nil {
-		r.logger.Printf("⚠️  Не удалось получить IP для %s: %v", ifaceName, err)
+		r.logger.Printf("⚠️  Интерфейс не найден %s: %v", ifaceName, err)
 		return "0.0.0.0"
 	}
 
-	// Парсим вывод ip addr
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "inet ") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				// Убрать маску подсети (/30)
-				ip := strings.Split(parts[1], "/")[0]
-				return ip
-			}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		r.logger.Printf("⚠️  Не удалось получить адреса для %s: %v", ifaceName, err)
+		return "0.0.0.0"
+	}
+
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip != nil && ip.To4() != nil {
+			return ip.String()
 		}
 	}
 
-	r.logger.Printf("⚠️  IP не найден для %s, использую 0.0.0.0", ifaceName)
+	r.logger.Printf("⚠️  IPv4 не найден для %s, использую 0.0.0.0", ifaceName)
 	return "0.0.0.0"
 }
 
@@ -325,6 +355,7 @@ func (r *Recorder) Stop() {
 	r.running = false
 	stopChans := r.stopChans
 	r.stopChans = make(map[string]chan bool)
+	r.runningChannels = make(map[string]Channel)
 	r.mu.Unlock()
 
 	// Отправить сигнал остановки всем каналам
@@ -366,13 +397,3 @@ func (r *Recorder) GetStatus() map[string]interface{} {
 	}
 }
 
-// sanitizeName - очистить название для использования в пути
-func sanitizeName(name string) string {
-	name = strings.TrimSpace(name)
-	name = strings.ReplaceAll(name, "/", "_")
-	name = strings.ReplaceAll(name, "\\", "_")
-	name = strings.ReplaceAll(name, ":", "_")
-	name = strings.ReplaceAll(name, " ", "_")
-	name = strings.ReplaceAll(name, "+", "_")
-	return name
-}

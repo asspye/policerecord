@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -79,6 +81,13 @@ func (cm *ConfigManager) Save() error {
 	}
 
 	return os.WriteFile(cm.filePath, data, 0644)
+}
+
+// GetRecordingConfig - получить параметры записи (потокобезопасно)
+func (cm *ConfigManager) GetRecordingConfig() RecordingConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.Config.Recording
 }
 
 // GetChannels - получить все каналы (потокобезопасно)
@@ -163,6 +172,9 @@ func (cm *ConfigManager) AddChannel(ch Channel) error {
 	return cm.saveUnlocked()
 }
 
+// ErrNotFound возвращается когда канал с указанным ID не найден
+var ErrNotFound = fmt.Errorf("channel not found")
+
 // DeleteChannel - удалить канал (для API)
 func (cm *ConfigManager) DeleteChannel(id string) error {
 	cm.mu.Lock()
@@ -174,7 +186,18 @@ func (cm *ConfigManager) DeleteChannel(id string) error {
 			return cm.saveUnlocked()
 		}
 	}
-	return nil
+	return ErrNotFound
+}
+
+// sanitizeName - очистить название для использования в пути к файлу
+func sanitizeName(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, "/", "_")
+	name = strings.ReplaceAll(name, "\\", "_")
+	name = strings.ReplaceAll(name, ":", "_")
+	name = strings.ReplaceAll(name, " ", "_")
+	name = strings.ReplaceAll(name, "+", "_")
+	return name
 }
 
 // saveUnlocked - сохранить без блокировки (уже заблокировано)

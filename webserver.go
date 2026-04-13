@@ -120,6 +120,17 @@ func (ws *WebServer) handleChannels(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if err := validateChannel(ch); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Проверить дублирование ID если указан явно
+		if ch.ID != "" && ws.configManager.GetChannel(ch.ID) != nil {
+			http.Error(w, "Channel with this ID already exists", http.StatusConflict)
+			return
+		}
+
 		// Генерировать ID если не указан
 		if ch.ID == "" {
 			// Найти максимальный номер среди существующих каналов
@@ -186,7 +197,10 @@ func (ws *WebServer) handleChannelsWithID(w http.ResponseWriter, r *http.Request
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "id": channelID})
 
 	case http.MethodDelete:
-		if err := ws.configManager.DeleteChannel(channelID); err != nil {
+		if err := ws.configManager.DeleteChannel(channelID); err == ErrNotFound {
+			http.Error(w, "Channel not found", http.StatusNotFound)
+			return
+		} else if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -283,20 +297,20 @@ func (ws *WebServer) handleStream(w http.ResponseWriter, r *http.Request) {
 	
 	// Очистить название канала так же как в рекордере
 	safeName := sanitizeName(channelName)
-	filepath := filepath.Join("/opt/tv-recorder/recordings", safeName, filename)
-	
-	if !isFileSafe(filepath, "/opt/tv-recorder/recordings") {
+	filePath := filepath.Join("/opt/tv-recorder/recordings", safeName, filename)
+
+	if !isFileSafe(filePath, "/opt/tv-recorder/recordings") {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
-	file, err := os.Open(filepath)
+
+	file, err := os.Open(filePath)
 	if err != nil {
 		http.Error(w, "File not found: "+err.Error(), http.StatusNotFound)
 		return
 	}
 	defer file.Close()
-	
+
 	w.Header().Set("Content-Type", "video/mp2t")
 	http.ServeContent(w, r, filename, time.Time{}, file)
 }
@@ -313,6 +327,11 @@ func (ws *WebServer) handleArchive(w http.ResponseWriter, r *http.Request) {
 	
 	channelName := parts[0]
 	dateStr := parts[1] // Формат: 2025-12-04
+
+	if _, err := time.Parse("2006-01-02", dateStr); err != nil {
+		http.Error(w, "Invalid date format. Use YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
 	
 	safeName := sanitizeName(channelName)
 	channelDir := filepath.Join("/opt/tv-recorder/recordings", safeName)
@@ -351,19 +370,21 @@ func (ws *WebServer) handleArchive(w http.ResponseWriter, r *http.Request) {
 	defer zipWriter.Close()
 	
 	for _, filePath := range matchedFiles {
-		file, err := os.Open(filePath)
-		if err != nil {
-			continue
-		}
-		defer file.Close()
-		
-		info, _ := file.Stat()
-		header, _ := zip.FileInfoHeader(info)
-		header.Name = info.Name()
-		header.Method = zip.Store // Без сжатия (видео уже сжато)
-		
-		writer, _ := zipWriter.CreateHeader(header)
-		io.Copy(writer, file)
+		func() {
+			file, err := os.Open(filePath)
+			if err != nil {
+				return
+			}
+			defer file.Close()
+
+			info, _ := file.Stat()
+			header, _ := zip.FileInfoHeader(info)
+			header.Name = info.Name()
+			header.Method = zip.Store // Без сжатия (видео уже сжато)
+
+			writer, _ := zipWriter.CreateHeader(header)
+			io.Copy(writer, file)
+		}()
 	}
 	
 	ws.logger.Printf("📦 Создан архив: %s за %s (%d файлов)", safeName, dateStr, len(matchedFiles))
@@ -384,20 +405,20 @@ func (ws *WebServer) handleDownload(w http.ResponseWriter, r *http.Request) {
 	
 	// Очистить название канала так же как в рекордере
 	safeName := sanitizeName(channelName)
-	filepath := filepath.Join("/opt/tv-recorder/recordings", safeName, filename)
-	
-	if !isFileSafe(filepath, "/opt/tv-recorder/recordings") {
+	filePath := filepath.Join("/opt/tv-recorder/recordings", safeName, filename)
+
+	if !isFileSafe(filePath, "/opt/tv-recorder/recordings") {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
-	file, err := os.Open(filepath)
+
+	file, err := os.Open(filePath)
 	if err != nil {
 		http.Error(w, "File not found: "+err.Error(), http.StatusNotFound)
 		return
 	}
 	defer file.Close()
-	
+
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	io.Copy(w, file)
@@ -412,7 +433,7 @@ func (ws *WebServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 	totalFiles := 0
 	totalSize := int64(0)
 
-	filepath.Walk("/mnt/recordings-new", func(path string, info os.FileInfo, err error) error {
+	filepath.Walk("/opt/tv-recorder/recordings", func(path string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() && strings.HasSuffix(info.Name(), ".ts") {
 			totalFiles++
 			totalSize += info.Size()
@@ -446,13 +467,17 @@ func isFileSafe(filePath, baseDir string) bool {
 	return strings.HasPrefix(absFile, absBase)
 }
 
-// sanitizeName - очистить название (копия из recorder.go)
-func sanitizeName(name string) string {
-	name = strings.TrimSpace(name)
-	name = strings.ReplaceAll(name, "/", "_")
-	name = strings.ReplaceAll(name, "\\", "_")
-	name = strings.ReplaceAll(name, ":", "_")
-	name = strings.ReplaceAll(name, " ", "_")
-	name = strings.ReplaceAll(name, "+", "_")
-	return name
+// validateChannel - базовая валидация параметров канала
+func validateChannel(ch Channel) error {
+	if ch.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if net.ParseIP(ch.MulticastIP) == nil {
+		return fmt.Errorf("invalid multicast_ip: %q", ch.MulticastIP)
+	}
+	if ch.Port < 1 || ch.Port > 65535 {
+		return fmt.Errorf("port must be between 1 and 65535")
+	}
+	return nil
 }
+

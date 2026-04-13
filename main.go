@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -29,21 +30,18 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Создать логгер
-	logFile, err := os.OpenFile("logs/tv-recorder.log", 
+	// Создать директории до открытия лог-файла
+	checkDirectories()
+
+	// Создать логгер — писать и в файл, и в консоль одновременно
+	logFile, err := os.OpenFile("logs/tv-recorder.log",
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatalf("❌ Ошибка создания лог-файла: %v", err)
 	}
 	defer logFile.Close()
 
-	// Логировать и в файл, и в консоль
-	logger := log.New(os.Stdout, "", log.LstdFlags)
-	logger.SetOutput(logFile)
-	
-	// Дублировать вывод в консоль
-	multiWriter := os.Stdout
-	logger.SetOutput(multiWriter)
+	logger := log.New(io.MultiWriter(os.Stdout, logFile), "", log.LstdFlags)
 
 	// Красивый баннер
 	printBanner(logger)
@@ -85,9 +83,7 @@ func main() {
 	logger.Printf("   - Длительность сегмента: %d сек (%d мин)", 
 		rec.SegmentDuration, rec.SegmentDuration/60)
 
-	// Проверить директории
-	logger.Println("\n📁 Проверка директорий...")
-	checkDirectories(logger)
+	logger.Println("📁 Директории готовы")
 
 	// Тестовый режим
 	if *testMode {
@@ -167,17 +163,16 @@ func checkFFmpeg(logger *log.Logger) bool {
 }
 
 // checkDirectories - проверить и создать необходимые директории
-func checkDirectories(logger *log.Logger) {
+func checkDirectories() {
 	dirs := []string{
+		"logs",
+		"config",
 		"/opt/tv-recorder/recordings",
-		"/opt/tv-recorder/config",
-		"/opt/tv-recorder/logs",
 	}
 
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			logger.Fatalf("❌ Не удалось создать директорию %s: %v", dir, err)
+			log.Fatalf("❌ Не удалось создать директорию %s: %v", dir, err)
 		}
-		logger.Printf("   ✅ %s", dir)
 	}
 }
