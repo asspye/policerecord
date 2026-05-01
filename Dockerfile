@@ -4,8 +4,8 @@ FROM golang:1.23-alpine AS builder
 WORKDIR /build
 
 # Зависимости
-COPY go.mod ./
-RUN go mod tidy
+COPY go.mod go.sum ./
+RUN go mod download
 
 # Исходники
 COPY *.go ./
