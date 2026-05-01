@@ -10,7 +10,6 @@ import (
 )
 
 // Channel - конфигурация одного канала
-// Channel - конфигурация одного канала
 type Channel struct {
 	ID          string `yaml:"id" json:"id"`
 	Name        string `yaml:"name" json:"name"`

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 CONFIG=${CONFIG_PATH:-/opt/tv-recorder/config/channels.yaml}

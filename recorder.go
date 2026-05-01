@@ -143,6 +143,11 @@ func (r *Recorder) reloadConfig() {
 				r.logger.Printf("⏸️  Остановка канала: %s", id)
 			}
 			r.mu.Lock()
+			if !r.running {
+				// Stop() уже закрыл все каналы — выходим, чтобы не сделать double-close
+				r.mu.Unlock()
+				return
+			}
 			delete(r.stopChans, id)
 			delete(r.runningChannels, id)
 			r.mu.Unlock()
@@ -275,37 +280,31 @@ func (r *Recorder) buildFFmpegCommand(ch Channel, outputDir string) *exec.Cmd {
 	// Шаблон для имени файла
 	outputPattern := filepath.Join(outputDir, fmt.Sprintf("%s_%%Y-%%m-%%d_%%H-%%M-%%S.ts", channelName))
 
-	// Команда FFmpeg - упрощенная и стабильная версия
-        // Команда FFmpeg с ожиданием ключевого кадра
-	// Команда FFmpeg - простая версия без экспериментальных параметров
-        // Команда FFmpeg с поддержкой preset для H.264
-        args := []string{
-  	"-fflags", "+genpts+discardcorrupt",
-	"-err_detect", "ignore_err",
-	"-i", inputURL,
-	"-vf", drawtext,
-	"-c:v", rec.Codec,
-	"-b:v", rec.Bitrate,
-	"-s", rec.Resolution,
-	"-r", rec.FPS,
-}
+	args := []string{
+		"-fflags", "+genpts+discardcorrupt",
+		"-err_detect", "ignore_err",
+		"-i", inputURL,
+		"-vf", drawtext,
+		"-c:v", rec.Codec,
+		"-b:v", rec.Bitrate,
+		"-s", rec.Resolution,
+		"-r", rec.FPS,
+	}
 
-       // Добавить preset если это H.264
-        if rec.Codec == "libx264" && rec.Preset != "" {
-	args = append(args, "-preset", rec.Preset)
-}
+	if rec.Codec == "libx264" && rec.Preset != "" {
+		args = append(args, "-preset", rec.Preset)
+	}
 
-        // Продолжить с остальными параметрами
-        args = append(args,
-	"-c:a", "copy",
-	"-f", "segment",
-	"-segment_time", fmt.Sprintf("%d", rec.SegmentDuration),
-	"-segment_format", "mpegts",
-	"-strftime", "1",
-	"-reset_timestamps", "1",
-	"-y",
-	outputPattern,
-)
+	args = append(args,
+		"-c:a", "copy",
+		"-f", "segment",
+		"-segment_time", fmt.Sprintf("%d", rec.SegmentDuration),
+		"-segment_format", "mpegts",
+		"-strftime", "1",
+		"-reset_timestamps", "1",
+		"-y",
+		outputPattern,
+	)
 
 	return exec.Command("ffmpeg", args...)
 }

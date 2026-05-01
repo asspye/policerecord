@@ -188,7 +188,7 @@
 		</div>
 	</div>
 
-	<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+	<script>
 		const API_BASE = '';
 		
 		let channels = [];
@@ -499,12 +499,8 @@
 		}
 		
 		function viewFile(filename) {
-			fetch(`${API_BASE}/api/files/${encodeURIComponent(selectedChannel.name)}`)
-				.then(r => r.json())
-				.then(data => {
-					const file = data.files.find(f => f.name === filename);
-					if (file) showVideoPlayer(file);
-				});
+			const file = allFiles.find(f => f.name === filename);
+			if (file) showVideoPlayer(file);
 		}
 		
 		async function toggleChannel(channelId, enable) {
