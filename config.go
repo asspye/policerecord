@@ -27,6 +27,10 @@ type RecordingConfig struct {
 	SegmentDuration int    `yaml:"segment_duration"`
 	AudioBitrate    string `yaml:"audio_bitrate"`
 	Resolution      string `yaml:"resolution"`
+	// HWAccel — "vaapi": декодирование/масштабирование/кодирование на Intel GPU (QuickSync через VAAPI),
+	// наложение текста остаётся на CPU. Пусто — всё на CPU (libx264), как раньше.
+	HWAccel     string `yaml:"hwaccel,omitempty" json:"hwaccel,omitempty"`
+	VAAPIDevice string `yaml:"vaapi_device,omitempty" json:"vaapi_device,omitempty"`
 }
 
 // Config - полная конфигурация

@@ -20,3 +20,5 @@ recording:
   segment_duration: 3600
   audio_bitrate: 96k
   resolution: 640x480
+  # vaapi — кодирование на Intel GPU (нужен /dev/dri в контейнере); пусто — libx264 на CPU
+  hwaccel: ""

@@ -1,0 +1,10 @@
+[Unit]
+Description=Удаление записей policerecord старше 40 дней
+RequiresMountsFor=/mnt/recordings
+
+[Service]
+Type=oneshot
+Environment=RETENTION_DAYS=40
+ExecStart=/usr/local/sbin/policerecord-cleanup
+Nice=19
+IOSchedulingClass=idle

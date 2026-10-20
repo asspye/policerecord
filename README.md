@@ -238,3 +238,14 @@ go build -o api-server api-server.go webserver.go config.go
 |---|---|
 | `logs/tv-recorder.log` | Основной лог рекордера |
 | `logs/ffmpeg_<channel_id>.log` | Stderr FFmpeg для каждого канала |
+
+## Очистка старых записей
+
+Записи старше 40 дней удаляются systemd-таймером на хосте (каждый день в 04:30), контейнер не трогается.
+Файлы — `deploy/cleanup/`; установка на сервер:
+
+```bash
+scp -r deploy/cleanup cilkee@192.168.1.59:/tmp/ && ssh -t cilkee@192.168.1.59 'sudo bash /tmp/cleanup/install.sh'
+```
+
+Срок хранения — `Environment=RETENTION_DAYS=` в `/etc/systemd/system/policerecord-cleanup.service`.

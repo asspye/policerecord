@@ -17,11 +17,14 @@ RUN go build -o recorder   main.go      recorder.go config.go && \
 # ── Stage 2: финальный образ ──────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
-# FFmpeg + шрифты для drawtext
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# FFmpeg + шрифты для drawtext + драйвер Intel iHD для VAAPI/QuickSync (recording.hwaccel: vaapi).
+# intel-media-va-driver-non-free — из non-free: в свободном нет кодирования H.264 на Alder Lake.
+RUN sed -i 's/^Components: main$/Components: main non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
         fonts-dejavu-core \
         ca-certificates \
+        intel-media-va-driver-non-free \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/tv-recorder

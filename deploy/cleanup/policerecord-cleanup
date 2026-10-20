@@ -1,0 +1,12 @@
+#!/bin/sh
+# Удаляет записи старше RETENTION_DAYS (по умолчанию 40) из /mnt/recordings/<канал>/*.ts.
+# Запускается systemd-таймером policerecord-cleanup.timer раз в сутки.
+set -eu
+DIR=${RECORDINGS_DIR:-/mnt/recordings}
+DAYS=${RETENTION_DAYS:-40}
+
+# Если диск записей не смонтирован, в каталоге пусто или лежит что-то чужое — ничего не трогаем.
+mountpoint -q "$DIR" || { echo "$DIR не смонтирован — пропуск"; exit 1; }
+
+n=$(find "$DIR" -mindepth 2 -maxdepth 2 -type f -name '*.ts' -mmin +$((DAYS * 1440)) -print -delete | wc -l)
+echo "удалено файлов старше $DAYS дн.: $n; свободно на $DIR: $(df -h --output=avail "$DIR" | tail -1 | tr -d ' ')"
